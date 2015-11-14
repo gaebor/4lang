@@ -30,6 +30,18 @@ class TextTo4lang():
         elif self.lang == 'hu':
             self.parser_wrapper = Magyarlanc(self.cfg)
         self.dep_to_4lang = DepTo4lang(self.cfg)
+        
+        self.known_words = self.dep_to_4lang.lexicon.get_words()
+        fn = self.cfg.get("text", "stop_word_list")
+        if os.path.exists(fn):
+            self.stop_words = {}
+            for line in open(fn, "r"):
+                line = line.strip().split()
+                if len(line) > 0 and line[0] != '#':
+                    self.stop_words[line[0]] = 1
+            self.stop_words = set(self.stop_words.keys())
+        else:
+            self.stop_words = set(self.dep_to_4lang.lexicon.lexicon.keys())
 
     @staticmethod
     def preprocess_text(text):
@@ -106,9 +118,7 @@ class TextTo4lang():
             machines = self.dep_to_4lang.get_machines_from_deps_and_corefs(
                 deps, corefs)
             if self.cfg.getboolean('text', 'expand'):
-                self.expand(
-                    machines,
-                    set(self.dep_to_4lang.lexicon.lexicon.keys()) | set(["the"]))  # nopep8
+                self.expand(machines)  # nopep8
 
             if self.cfg.getboolean('text', 'print_graphs'):
                 fn = print_text_graph(machines, self.graphs_dir, fn=c)
@@ -126,12 +136,9 @@ class TextTo4lang():
         # ipdb.set_trace()
         return None
 
-    def expand(self, words_to_machines, stopwords=[]):
-        if len(stopwords) == 0:
-            stopwords = set(self.dep_to_4lang.lexicon.lexicon.keys())
-        known_words = self.dep_to_4lang.lexicon.get_words()
+    def expand(self, words_to_machines):
         for lemma, machine in words_to_machines.iteritems():
-            if lemma in known_words and lemma not in stopwords:
+            if lemma in self.known_words and lemma not in self.stop_words:
                 # sys.stderr.write(lemma + "\t")
                 definition = self.dep_to_4lang.lexicon.get_machine(lemma)
                 if (len(definition.children()) == 1 and
